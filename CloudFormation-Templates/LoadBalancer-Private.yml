@@ -1,0 +1,141 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: A sample template to create Private application loadbalancer.
+
+Parameters:
+
+  PrivateELBName:
+    Description: Name of your Private loadbalancer(Only a-z,A-Z,0-9 & - are allowed)  # optional   # optional
+    Type: String     # required
+#    Default:
+
+  PrivateScheme:
+    Description: 'An internal load balancer routes requests from clients to targets using Private IP addresses.'
+    Type: String
+    Default: internal
+#    AllowedValues:
+#    - internet-facing
+#    - internal
+
+  IPAddressType:
+    Description: 'The IP addresses used by your subnets, either IPv4 (ipv4) or IPv4 and IPv6 (dualstack)'
+    Type: String
+    Default: ipv4
+#    AllowedValues:
+#    - ipv4
+#    - dualstack
+
+  Type:
+    Description: 'The type of load balancer. The default is application'
+    Type: String
+    Default: application
+#    AllowedValues:
+#    - application
+#    - network
+
+#  CertificateArn:
+#    Type: String
+#    Description: ARN of an ACM certificate for the HTTPS listener
+
+  Environment:
+    Description: 'Specifiy an environment name'
+    Type: String
+    Default: Test
+
+  VPC:
+    Description: Choose which VPC the Application Load Balancer should be deployed to
+    Type: AWS::EC2::VPC::Id
+
+  Subnets:
+    Description: Choose which (atleast two) subnets the Application Load Balancer should be deployed to
+    Type: List<AWS::EC2::Subnet::Id>
+
+Resources:
+
+  PrivateLoadbalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: !Ref IPAddressType
+#      LoadBalancerAttributes:
+#        - LoadBalancerAttribute
+      Name: !Ref PrivateELBName
+      Scheme: !Ref PrivateScheme
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+#      SubnetMappings:
+#        - SubnetMapping
+      Subnets: !Ref Subnets
+#      Tags:
+#        - key: Name
+#          Value: !Ref Environment
+
+      Tags:
+        -
+          Key: Name
+          Value: !Ref Environment
+      Type: !Ref Type
+
+  LoadBalancerHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref PrivateLoadbalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref DefaultTargetGroup
+
+#  LoadBalancerHTTPSListener:
+#    Type: AWS::ElasticLoadBalancingV2::Listener
+#    Properties:
+#      LoadBalancerArn: !Ref PrivateLoadbalancer
+#      Port: 443
+#      Protocol: HTTPS
+#      DefaultActions:
+#        - Type: forward
+#          TargetGroupArn: !Ref DefaultTargetGroup
+#      Certificates:
+#        - CertificateArn: !Ref CertificateArn
+#      SslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
+
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${Environment}-default
+      TargetType: instance
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+
+Outputs:
+  LoadBalancer:
+    Description: A reference to the Application Load Balancer
+    Value: !Ref PrivateLoadbalancer
+
+  LoadBalancerUrl:
+    Description: The URL of the ALB
+    Value: !GetAtt PrivateLoadbalancer.DNSName
+
+  Listener:
+    Description: A reference to a port 80 listener
+    Value: !Ref LoadBalancerHTTPListener
+
+#  Listener:
+#    Description: A reference to a port 443 listener
+#    Value: !Ref LoadBalancerHTTPSListener
